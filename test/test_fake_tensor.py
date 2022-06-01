@@ -104,6 +104,30 @@ class FakeTensorTest(TestCase):
             self.assertTrue(isinstance(z, FakeTensor))
             self.assertEqual(z.device.type, "cuda")
 
+    @unittest.skipIf(not RUN_CUDA, "requires cuda")
+    def test_cpu_fallback_returned_impl(self):
+        with enable_torch_dispatch_mode(FakeTensorMode(inner=None, allow_cpu_fallback=True)):
+            x = torch.randn([4, 4]).cuda()
+            with self.assertRaises(NotImplementedError):
+                out = torch.relu_(x)
+
+    @unittest.skipIf(not RUN_CUDA, "requires cuda")
+    def test_cpu_fallback(self):
+        with enable_torch_dispatch_mode(FakeTensorMode(inner=None, allow_cpu_fallback=False)):
+            filters = torch.randn(8, 4, 3, 3).cuda()
+            inputs = torch.randn(1, 4, 5, 5).cuda()
+            with self.assertRaises(NotImplementedError):
+                torch.nn.functional.conv2d(inputs, filters, padding=1)
+
+        with enable_torch_dispatch_mode(FakeTensorMode(inner=None, allow_cpu_fallback=True)):
+            filters = torch.randn(8, 4, 3, 3).cuda()
+            inputs = torch.randn(1, 4, 5, 5).cuda()
+
+            out = torch.nn.functional.conv2d(inputs, filters, padding=1)
+            self.assertEqual(out.device.type, "cuda")
+            self.assertEqual(list(out.size()), [1, 8, 5, 5])
+
+
 def contains_type(type: torch._C.Type, maybe_contained_type: torch._C.Type):
     return maybe_contained_type.isSubtypeOf(type) or any(
         contains_type(e, maybe_contained_type) for e in type.containedTypes()
@@ -148,12 +172,12 @@ class FakeTensorConverterTest(TestCase):
             x = torch.empty(2, 2, device="cpu")
             y = torch.empty(2, 2, device="cpu")
 
-        # TODO: need 
+        # TODO: need
         out = x + y
         self.assertEqual(mode, out.fake_mode)
         self.assertTrue(isinstance(out, FakeTensor))
         self.assertEqual(out.device.type, "cpu")
-    
+
     def test_separate_mode_error(self):
         with enable_torch_dispatch_mode(FakeTensorMode(inner=None)):
             x = torch.empty(2, 2, device="cpu")
