@@ -294,3 +294,33 @@ def tanhshrink(a: TensorLikeType) -> TensorLikeType:
             "Expected a tensor input for an elementwise unary operation!"
         )
     return refs.sub(a, refs.tanh(a))
+
+
+@elementwise_unary_scalar_wrapper
+@elementwise_type_promotion_wrapper(
+    type_promoting_args=("a",),
+    type_promotion_kind=utils.ELEMENTWISE_TYPE_PROMOTION_KIND.DEFAULT,
+)
+def gelu(a: TensorLikeType, approximate: str = 'none') -> TensorLikeType:
+    """
+    Reference implementation of torch.nn.functional.gelu
+    """
+    if not isinstance(a, TensorLike):
+        raise RuntimeError(
+            "Expected a tensor input for an elementwise unary operation!"
+        )
+    M_SQRT2 = 1.41421356237309504880
+    M_SQRT1_2 = 0.70710678118654752440
+    M_2_SQRTPI = 1.12837916709551257390
+    print(approximate)
+    if approximate == "none":
+        kBeta = M_SQRT2 * M_2_SQRTPI * 0.5
+        kKappa = 0.044715
+        x_cube = torch.mul(torch.mul(a, a), a)
+        inner = torch.mul(kBeta, torch.mul(torch.add(a, kKappa), x_cube))
+        return torch.mul(torch.mul(0.5, a) , torch.add(1, torch.tanh(inner)))
+    elif approximate == "tanh":
+        kAlpha = M_SQRT1_2
+        return torch.mul(torch.mul(a, 0.5), torch.add(1, torch.erf(torch.mul(a , kAlpha))))
+    else:
+        raise RuntimeError("approximate argument must be either none or tanh.")
